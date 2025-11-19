@@ -121,7 +121,7 @@ class MainActivity : AppCompatActivity() {
             Method.POST, url, jsonBody,
             { response ->
                 Log.d("API Success", "Respuesta de la API: $response")
-                Toast.makeText(this, "Respuesta recibida: ${response.toString().take(50)}...", Toast.LENGTH_LONG).show()
+                procesarRespuesta(response, baseUrl)
             },
             { error: VolleyError ->
                 Log.e("API Error", "Error en la API: $error")
@@ -141,5 +141,37 @@ class MainActivity : AppCompatActivity() {
         
         // Add request to queue
         queue.add(jsonObjectRequest)
+    }
+
+    private fun procesarRespuesta(response: JSONObject, baseUrl: String) {
+        try {
+            val status = response.getInt("status")
+            
+            if (status == 200) {
+                val detalle = response.getJSONObject("detalle")
+                val alumno = detalle.getJSONObject("alumno")
+                
+                val legajo = alumno.getInt("legajo")
+                val nombres = alumno.getString("nombres")
+                val dni = alumno.getString("dni")
+                val pertenece = alumno.getBoolean("pertenece")
+                val fotoUrl = alumno.optString("foto", "")
+                
+                // Launch ResultActivity with the data
+                val intent = Intent(this, ResultActivity::class.java)
+                intent.putExtra("legajo", legajo)
+                intent.putExtra("nombres", nombres)
+                intent.putExtra("dni", dni)
+                intent.putExtra("pertenece", pertenece)
+                intent.putExtra("foto_url", fotoUrl)
+                intent.putExtra("base_url", baseUrl)
+                startActivity(intent)
+            } else {
+                Toast.makeText(this, "Error: Estado $status", Toast.LENGTH_LONG).show()
+            }
+        } catch (e: Exception) {
+            Log.e("API Parse", "Error al parsear respuesta: $e")
+            Toast.makeText(this, "Error al procesar respuesta", Toast.LENGTH_LONG).show()
+        }
     }
 }
