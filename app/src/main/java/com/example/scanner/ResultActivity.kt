@@ -58,8 +58,10 @@ class ResultActivity : AppCompatActivity() {
     private fun loadPhoto(baseUrl: String, fotoUrl: String) {
         binding.tvLoadingFoto.visibility = View.VISIBLE
         
-        // Construct full photo URL
-        val fullPhotoUrl = "$baseUrl/$fotoUrl"
+        // Construct full photo URL, handling potential double slashes
+        val cleanBaseUrl = baseUrl.trimEnd('/')
+        val cleanFotoUrl = fotoUrl.trimStart('/')
+        val fullPhotoUrl = "$cleanBaseUrl/$cleanFotoUrl"
         Log.d("ResultActivity", "Loading photo from: $fullPhotoUrl")
 
         val queue = Volley.newRequestQueue(this)
