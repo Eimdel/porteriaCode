@@ -18,6 +18,8 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Scanner"
         android:hardwareAccelerated="true"
+
+        android:usesCleartextTraffic="true"
         >
         <activity
             android:name=".MainActivity"
@@ -36,5 +38,7 @@
             android:screenOrientation="portrait"
             tools:replace="screenOrientation"/>
     </application>
+
+
 
 </manifest>

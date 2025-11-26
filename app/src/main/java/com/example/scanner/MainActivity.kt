@@ -10,51 +10,61 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.example.scanner.databinding.ActivityMainBinding
+
+// Para el lector
 import com.google.zxing.integration.android.IntentIntegrator
 
-import com.android.volley.Request
-import com.android.volley.Response
+// Para conectar con la API de php
 import com.android.volley.VolleyError
 import com.android.volley.toolbox.JsonObjectRequest
 import com.android.volley.toolbox.Volley
 
+// Procesar datos
 import org.json.JSONObject
 import android.util.Log
 
 class MainActivity : AppCompatActivity() {
 
+    // lateinit declara propiedades sin datos, pero obtienen valor antes de ejecutarse
     private lateinit var binding: ActivityMainBinding
-    private lateinit var sharedPreferences: SharedPreferences
-    private val PREFS_NAME = "ScannerPrefs"
-    private val API_URL_KEY = "api_url"
-    private val DEFAULT_API_URL = "http://localhost"
+    private lateinit var sharedPreferences: SharedPreferences // Guardar URL de la API
+
+    private val PREFS_NAME = "ScannerPrefs" // Nombre del archivo
+    private val API_URL_KEY = "api_url" // CLave para guardar URL
+    private val DEFAULT_API_URL = "http://localhost" // URL predeterminada
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Inicialización de la interfaz
         binding = ActivityMainBinding.inflate(layoutInflater)
         enableEdgeToEdge()
         setContentView(binding.root)
         
-        // Initialize SharedPreferences
+        // Ejecutar SharedPreferences
         sharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         
-        // Load saved API URL or use default
+        // Cargar la URL guardada de la API y establecerla en un EditText
         val savedUrl = sharedPreferences.getString(API_URL_KEY, DEFAULT_API_URL)
         binding.etApiUrl.setText(savedUrl)
-        
+
+        // Establecer listener para el boton del escaneo
         binding.btnScanner.setOnClickListener { 
-            // Save API URL before scanning
+            // Guarda URL antes de escanear
             saveApiUrl()
+            // Inicio de escaner
             initScanner() 
         }
-        
+
+        // Que no se oculte o se solape el contenido de las vistas
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
     }
-    
+
+    // Guardar la URL de la API en SharedPreferences
     private fun saveApiUrl() {
         val apiUrl = binding.etApiUrl.text.toString().trim()
         if (apiUrl.isNotEmpty()) {
@@ -62,52 +72,58 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // Inicializa el escaneo con IntentIntegrator (clase de utilidad) de zxing
     private fun initScanner() {
         val integrator = IntentIntegrator(this)
         integrator.setDesiredBarcodeFormats(
             listOf(
-                //Establecer formatos
+                //Establecer formatos de codigos de barras
                 IntentIntegrator.PDF_417,
                 IntentIntegrator.QR_CODE
             )
         )
-        //Ejecutar
+        //Ejecutar el escaner
         integrator.initiateScan()
     }
 
+    // Ejecucion luego de dar por terminado el escaneo, verifica los datos
     override fun onActivityResult(
         requestCode: Int,
         resultCode: Int,
         data: Intent?,
     ) {
+        // Identificar resultados e identificar estructura
         val result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
         if (result != null) {
             if (result.contents == null) {
+                // En caso de cancelar escaneo
                 Toast.makeText(this, "Escaneo cancelado", Toast.LENGTH_LONG).show()
             } else {
-                //Procesar contenido
-                //Toast.makeText(this, "${result.contents}", Toast.LENGTH_LONG).show()
+                // Escaneo exitoso
                 val contenido = result.contents
+                // Enviar codigo a la API
                 enviarConsulta(contenido)
             }
         } else {
+            // Manejar resultados de otras actividades
             super.onActivityResult(requestCode, resultCode, data)
         }
 
     }
 
+    // Enviar token a la API para buscar al individuo
     private fun enviarConsulta(codigo: String) {
-        // Get API base URL from EditText
+        // Obtener URL desde el EditText
         val baseUrl = binding.etApiUrl.text.toString().trim()
         if (baseUrl.isEmpty()) {
             Toast.makeText(this, "Por favor ingrese la URL de la API", Toast.LENGTH_LONG).show()
-            return
+            return // En caso de no haber URL, detener ejecucion
         }
         
-        // Construct full URL
+        // Construir la URL
         val url = "$baseUrl/api29-main/alumnos"
         
-        // Create JSON object with token
+        // Crear la peticion POST con el token
         val jsonBody = JSONObject()
         jsonBody.put("token", codigo)
         
@@ -116,20 +132,23 @@ class MainActivity : AppCompatActivity() {
         
         val queue = Volley.newRequestQueue(this)
         
-        // Create JsonObjectRequest with custom headers
+        // Crear la peticion POST de JSON
         val jsonObjectRequest = object : JsonObjectRequest(
             Method.POST, url, jsonBody,
             { response ->
+                // Recibir respuesta del servidor
                 Log.d("API Success", "Respuesta de la API: $response")
                 procesarRespuesta(response, baseUrl)
             },
             { error: VolleyError ->
+                //  Error al conectar
                 Log.e("API Error", "Error en la API: $error")
+                // Intenta mostrar la respuesta de error de la red si está disponible
                 Log.e("API Error Detail", "Respuesta de error: ${String(error.networkResponse?.data ?: ByteArray(0))}")
                 Toast.makeText(this, "Error de conexión: ${error.message}", Toast.LENGTH_LONG).show()
             })
         {
-            // Override getHeaders to add custom headers
+            // Sobreescribir getHeaders para agregarles encabezados HTTP
             override fun getHeaders(): MutableMap<String, String> {
                 val headers = HashMap<String, String>()
                 headers["Content-Type"] = "application/json"
@@ -139,15 +158,17 @@ class MainActivity : AppCompatActivity() {
             }
         }
         
-        // Add request to queue
+        // Incorporar peticion a la cola para ejecucion
         queue.add(jsonObjectRequest)
     }
 
+    // Interpreta la respuesta del JSON de la API y ejecuta un ResultActivity con los datos3
     private fun procesarRespuesta(response: JSONObject, baseUrl: String) {
         try {
             val status = response.getInt("status")
             
             if (status == 200) {
+                // Extraccion de datos anidados
                 val detalle = response.getJSONObject("detalle")
                 val alumno = detalle.getJSONObject("alumno")
                 
@@ -157,7 +178,7 @@ class MainActivity : AppCompatActivity() {
                 val pertenece = alumno.getBoolean("pertenece")
                 val fotoUrl = alumno.optString("foto", "")
                 
-                // Launch ResultActivity with the data
+                // Adjuntar todos los datos de los alumnos
                 val intent = Intent(this, ResultActivity::class.java)
                 intent.putExtra("legajo", legajo)
                 intent.putExtra("nombres", nombres)
@@ -165,11 +186,14 @@ class MainActivity : AppCompatActivity() {
                 intent.putExtra("pertenece", pertenece)
                 intent.putExtra("foto_url", fotoUrl)
                 intent.putExtra("base_url", baseUrl)
-                startActivity(intent)
+
+                startActivity(intent) // Iniciar actividad
             } else {
+                // Manejo de estados de errores devueltos por la API
                 Toast.makeText(this, "Error: Estado $status", Toast.LENGTH_LONG).show()
             }
         } catch (e: Exception) {
+            // Captura errores si la estructura del JSON es inesperada
             Log.e("API Parse", "Error al parsear respuesta: $e")
             Toast.makeText(this, "Error al procesar respuesta", Toast.LENGTH_LONG).show()
         }
